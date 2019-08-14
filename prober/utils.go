@@ -15,8 +15,11 @@ package prober
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
+	"net/http"
 	"time"
 
 	"github.com/go-kit/kit/log"
@@ -102,4 +105,71 @@ func chooseProtocol(ctx context.Context, IPProtocol string, fallbackIPProtocol b
 		probeIPProtocolGauge.Set(6)
 	}
 	return fallback, lookupTime, nil
+}
+
+func readJsonData(resp *http.Response) (interface{}, error) {
+	bytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var jsonData interface{}
+	err = json.Unmarshal([]byte(bytes), &jsonData)
+	if err != nil {
+		return nil, err
+	}
+
+	return jsonData, nil
+}
+
+type ReceiverFunc func(key string, value float64)
+
+func (receiver ReceiverFunc) Receive(key string, value float64) {
+	receiver(key, value)
+}
+
+type Receiver interface {
+	Receive(key string, value float64)
+}
+
+func walkJSON(path string, jsonData interface{}, receiver Receiver, logger log.Logger) {
+	switch v := jsonData.(type) {
+	case int:
+		receiver.Receive(path, float64(v))
+	case float64:
+		receiver.Receive(path, v)
+	case bool:
+		n := 0.0
+		if v {
+			n = 1.0
+		}
+		receiver.Receive(path, n)
+	case string:
+		timeFormat := "2006/01/02"
+		licenseDate, err := time.Parse(timeFormat, v)
+		if err != nil {
+			level.Error(logger).Log("msg", "Unable to parse the license date: "+v, "err")
+			return
+		}
+		// timeDiff := time.Since(licenseDate)
+		// receiver.Receive(path, float64(int(timeDiff.Hours()/-24)))
+		receiver.Receive(path, float64(licenseDate.Unix()))
+	case nil:
+		// ignore
+	case []interface{}:
+		prefix := path + "__"
+		for i, x := range v {
+			walkJSON(fmt.Sprintf("%s%d", prefix, i), x, receiver, logger)
+		}
+	case map[string]interface{}:
+		prefix := ""
+		if path != "" {
+			prefix = path + "::"
+		}
+		for k, x := range v {
+			walkJSON(fmt.Sprintf("%s%s", prefix, k), x, receiver, logger)
+		}
+	default:
+		level.Error(logger).Log("msg", "unkown type", "err")
+	}
 }

@@ -37,8 +37,8 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 	"gopkg.in/yaml.v3"
 
-	"github.com/prometheus/blackbox_exporter/config"
-	"github.com/prometheus/blackbox_exporter/prober"
+	"blackbox_exporter/config"
+	"blackbox_exporter/prober"
 )
 
 var (
