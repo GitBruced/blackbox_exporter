@@ -293,6 +293,9 @@ func ProbeHTTP(ctx context.Context, target string, module config.Module, registr
 
 	// give the credential to the HttpClientConfig if the auth type matches
 	if authType == "basic" {
+		// 20210502 fixed, Bruce. Must allocate a memory space to the BasicAuth field first
+		// The struct is defined as the value of pointer(*BasicAuth) which could not be assigned
+		httpClientConfig.BasicAuth = &pconfig.BasicAuth{}
 		httpClientConfig.BasicAuth.Username = username
 		httpClientConfig.BasicAuth.Password = pconfig.Secret(password)
 	}
