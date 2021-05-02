@@ -260,6 +260,12 @@ func ProbeHTTP(ctx context.Context, target string, module config.Module, registr
 		target = "http://" + target
 	}
 
+	target, authType, username, password, token, err := getAuthCredential(target)
+	if err != nil {
+		level.Error(logger).Log("msg", "Could not parse auth crednetial from target", "err", err)
+		return false
+	}
+
 	targetURL, err := url.Parse(target)
 	if err != nil {
 		level.Error(logger).Log("msg", "Could not parse target URL", "err", err)
@@ -284,6 +290,16 @@ func ProbeHTTP(ctx context.Context, target string, module config.Module, registr
 		// the hostname of the target.
 		httpClientConfig.TLSConfig.ServerName = targetHost
 	}
+
+	// give the credential to the HttpClientConfig if the auth type matches
+	if authType == "basic" {
+		httpClientConfig.BasicAuth.Username = username
+		httpClientConfig.BasicAuth.Password = pconfig.Secret(password)
+	}
+	if authType == "token" {
+		httpClientConfig.BearerToken = pconfig.Secret(token)
+	}
+
 	client, err := pconfig.NewClientFromConfig(httpClientConfig, "http_probe", true)
 	if err != nil {
 		level.Error(logger).Log("msg", "Error generating HTTP client", "err", err)
