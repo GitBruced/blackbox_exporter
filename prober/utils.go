@@ -20,6 +20,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-kit/kit/log"
@@ -172,4 +173,30 @@ func walkJSON(path string, jsonData interface{}, receiver Receiver, logger log.L
 	default:
 		level.Error(logger).Log("msg", "unkown type", "err")
 	}
+}
+
+// parses the credential from the target URL string
+// the returned targetUrl string will be trimed to the actually target URL only
+func getAuthCredential(target string) (targetUrl string, authType string, username string, password string, token string, err error) {
+	splits := strings.Split(target, ",")
+	if len(splits) > 1 {
+		if len(splits) < 3 {
+			return "", "", "", "", "", fmt.Errorf("Incorrect authentication format from the target: " + target)
+		}
+
+		if splits[1] == "basic" {
+			credential := strings.Split(splits[2], ":")
+			if len(credential) < 2 {
+				return "", "", "", "", "", fmt.Errorf("Incorrect credential for the basic authentication: " + splits[2])
+			}
+
+			return splits[0], splits[1], credential[0], credential[1], "", nil
+		}
+
+		if splits[1] == "token" {
+			return splits[0], splits[1], "", "", splits[2], nil
+		}
+	}
+
+	return splits[0], "", "", "", "", nil
 }
