@@ -1,6 +1,16 @@
 modules:
+  json_exporter:
+    prober: http
+    http:
+      parse_json_resp: true
+      metric_prefix: "json_exporter_"
+      tls_config:
+          insecure_skip_verify: true
   http_2xx:
     prober: http
+    http:
+      tls_config:
+          insecure_skip_verify: true
   http_post_2xx:
     prober: http
     http:

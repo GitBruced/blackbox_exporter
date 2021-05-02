@@ -36,7 +36,7 @@ import (
 	pconfig "github.com/prometheus/common/config"
 	"golang.org/x/net/publicsuffix"
 
-	"github.com/prometheus/blackbox_exporter/config"
+	"blackbox_exporter/config"
 )
 
 func matchRegularExpressions(reader io.Reader, httpConfig config.HTTPProbe, logger log.Logger) bool {
@@ -406,10 +406,30 @@ func ProbeHTTP(ctx context.Context, target string, module config.Module, registr
 		}
 
 		if resp != nil && !requestErrored {
-			_, err = io.Copy(ioutil.Discard, resp.Body)
-			if err != nil {
-				level.Info(logger).Log("msg", "Failed to read HTTP response body", "err", err)
-				success = false
+			if module.HTTP.ParseJsonResp {
+				jsonData, err := readJsonData(resp)
+				if err != nil {
+					level.Error(logger).Log("msg", "Failed to read the json response body", "err", err)
+					success = false
+				}
+
+				prefix := module.HTTP.MetricPrefix
+				walkJSON("", jsonData, ReceiverFunc(func(key string, value float64) {
+					g := prometheus.NewGauge(
+						prometheus.GaugeOpts{
+							Name: prefix + key,
+							Help: "Retrieved value",
+						},
+					)
+					registry.MustRegister(g)
+					g.Set(value)
+				}), logger)
+			} else {
+				_, err = io.Copy(ioutil.Discard, resp.Body)
+				if err != nil {
+					level.Info(logger).Log("msg", "Failed to read HTTP response body", "err", err)
+					success = false
+				}
 			}
 
 			resp.Body.Close()
